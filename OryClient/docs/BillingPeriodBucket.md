@@ -1,0 +1,12 @@
+# BillingPeriodBucket
+
+## Properties
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**baseInvoices** | [Invoice] |  | [optional] 
+**billingPeriod** | [**TimeInterval**](TimeInterval.md) |  | [optional] 
+**usageInvoice** | [**Invoice**](Invoice.md) |  | [optional] 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

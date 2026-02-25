@@ -1,0 +1,18 @@
+# NormalizedProjectRevisionTokenizerTemplate
+
+## Properties
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**claimsMapperUrl** | **String** | Claims mapper URL | [optional] 
+**createdAt** | **Date** | The Project&#39;s Revision Creation Date | [optional] [readonly] 
+**id** | **String** | The revision ID. | [optional] [readonly] 
+**jwksUrl** | **String** | JSON Web Key URL | [optional] 
+**key** | **String** | The unique key of the template | [optional] 
+**projectRevisionId** | **String** | The Revision&#39;s ID this schema belongs to | [optional] 
+**subjectSource** | **String** | Subject source for the tokenizer  Can be either id or external_id or empty | [optional] [default to .id]
+**ttl** | **String** | Token time to live | [optional] [default to "1m"]
+**updatedAt** | **Date** | Last Time Project&#39;s Revision was Updated | [optional] [readonly] 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+
