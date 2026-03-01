@@ -11,6 +11,8 @@ import Foundation
 public protocol OryAuthClientProtocol {
     func initLoginFlow() async throws -> OryLoginFlow
     func submitLogin(flowId: String, credentials: LoginCredentials) async throws -> OrySession
+    func getPasskeyChallenge(from flow: OryLoginFlow) async throws -> PasskeyChallenge
+    func submitPasskeyAssertion(flowId: String, credentialId: Data, clientDataJSON: Data, authenticatorData: Data, signature: Data) async throws -> OrySession
     /*func initRegistrationFlow() async throws -> OryRegistrationFlow
     func submitRegistration(flowId: String, credentials: RegistrationCredentials) async throws -> OrySession*/
     func getSession() async throws -> OrySession
@@ -21,6 +23,7 @@ public final class OryAuthClient: OryAuthClientProtocol {
     
     private let apiConfig: OpenAPIClientAPIConfiguration
     private let nodeParser: UiNodeParser
+    private let passkeyChallengeParser: PasskeyChallengeParser
     private let sessionStore: SessionStorage
     
     // Session token key is constant due to supporting one session
@@ -29,6 +32,7 @@ public final class OryAuthClient: OryAuthClientProtocol {
     public init(projectBaseURL: String) {
         self.apiConfig = OpenAPIClientAPIConfiguration(basePath: projectBaseURL)
         self.nodeParser = UiNodeParser()
+        self.passkeyChallengeParser = PasskeyChallengeParser()
         self.sessionStore = SessionStorage()
     }
     
@@ -81,6 +85,70 @@ public final class OryAuthClient: OryAuthClientProtocol {
             )
         } catch let error as ErrorResponse {
             throw parseOryError(error)
+        }
+    }
+    
+    // MARK: - Passkey
+    
+    public func getPasskeyChallenge(from flow: OryLoginFlow) async throws -> PasskeyChallenge {
+        do {
+            guard let passkeyChallenge = passkeyChallengeParser.parse(from: flow) else {
+                throw OryError.unknown(
+                    NSError(domain: "OryAuthSDK", code: -1, userInfo: [NSLocalizedDescriptionKey: "No passkey challenge in flow."])
+                )
+            }
+            
+            return passkeyChallenge
+        } catch {
+            throw OryError.unknown(error)
+        }
+    }
+    
+    public func submitPasskeyAssertion(flowId: String, credentialId: Data, clientDataJSON: Data, authenticatorData: Data, signature: Data) async throws -> OrySession {
+        do {
+            let assertionResponse: [String: Any] = [
+                "id": credentialId.base64URLEncodedString(),
+                "rawId": credentialId.base64URLEncodedString(),
+                "type": "public-key",
+                "response": [
+                    "clientDataJSON": clientDataJSON.base64URLEncodedString(),
+                    "authenticatorData": authenticatorData.base64URLEncodedString(),
+                    "signature": signature.base64URLEncodedString()
+                ]
+            ]
+            
+            let assertionJSON = try JSONSerialization.data(withJSONObject: assertionResponse)
+            guard let assertionString = String(data: assertionJSON, encoding: .utf8) else {
+                throw OryError.unknown(
+                    NSError(domain: "OryAuthSDK", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to encode passkey assertion"])
+                )
+            }
+            
+            let body = UpdateLoginFlowBody.typeUpdateLoginFlowWithPasskeyMethod(
+                UpdateLoginFlowWithPasskeyMethod(
+                    method: "passkey",
+                    passkeyLogin: assertionString
+                )
+            )
+            
+            let response = try await FrontendAPI.updateLoginFlow(
+                flow: flowId,
+                updateLoginFlowBody: body,
+                apiConfiguration: apiConfig
+            )
+            
+            if let token = response.sessionToken {
+                try sessionStore.save(key: sessionTokenKey, value: token)
+            }
+            
+            let identity = parseIdentity(response.session.identity)
+            
+            return OrySession(
+                id: response.session.id,
+                token: response.sessionToken,
+                identity: identity
+            )
         }
     }
     
@@ -157,5 +225,14 @@ public final class OryAuthClient: OryAuthClientProtocol {
                 return .unknown(underlyingError)
             }
         }
+    }
+    
+    private func isPasskeyEnabled(in fields: [OryField]) -> Bool {
+        for field in fields {
+            if field.group == .passkey {
+                return true
+            }
+        }
+        return false
     }
 }

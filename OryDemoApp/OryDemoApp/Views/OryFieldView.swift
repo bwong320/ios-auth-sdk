@@ -13,15 +13,35 @@ struct OryFieldView: View {
     let oryField: OryField
     @Binding var value: String
     let onSubmit: () async -> Void
+    let onPasskey: () async throws -> Void
+    
+    init(oryField: OryField, value: Binding<String>) {
+        self.oryField = oryField
+        self._value = value
+        self.onSubmit = {}
+        self.onPasskey = {}
+    }
     
     init(
         oryField: OryField,
         value: Binding<String>,
-        onSubmit: @escaping () async -> Void = {}
+        onSubmit: @escaping () async -> Void
     ) {
         self.oryField = oryField
         self._value = value
         self.onSubmit = onSubmit
+        self.onPasskey = {}
+    }
+    
+    init(
+        oryField: OryField,
+        value: Binding<String>,
+        onPasskey: @escaping () async throws -> Void
+    ) {
+        self.oryField = oryField
+        self._value = value
+        self.onPasskey = onPasskey
+        self.onSubmit = {}
     }
     
     var body: some View {
@@ -34,7 +54,9 @@ struct OryFieldView: View {
                 passwordField
             case .submit:
                 submitButton
-            case .hidden, .email, .button, .unknown:
+            case .button:
+                buttonField
+            case .hidden, .email, .unknown:
                 EmptyView()
             }
         case .text, .img, .a, .script, .div:
@@ -81,6 +103,20 @@ struct OryFieldView: View {
     private var submitButton: some View {
         Button {
             Task { await onSubmit() }
+        } label: {
+            Text(oryField.label)
+        }
+        .buttonStyle(.borderedProminent)
+    }
+    
+    @ViewBuilder
+    private var buttonField: some View {
+        Button {
+            if oryField.group == .passkey {
+                Task { try await onPasskey() }
+            } else {
+                // Handle other button submits
+            }
         } label: {
             Text(oryField.label)
         }

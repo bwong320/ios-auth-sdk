@@ -16,6 +16,7 @@ class LoginViewModel: ObservableObject {
     
     @Published var fields: [OryField] = []
     @Published var fieldValues: [String: String] = [:]
+    @Published var passkeyChallenge: PasskeyChallenge?
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -23,10 +24,9 @@ class LoginViewModel: ObservableObject {
     private var flowId: String?
     private var onLogin: (OrySession) -> Void
     
-    init(
-        oryClient: OryAuthClientProtocol,
-        onLogin: @escaping (OrySession) -> Void
-    ) {
+    var hasPasskey: Bool = false
+    
+    init(oryClient: OryAuthClientProtocol, onLogin: @escaping (OrySession) -> Void) {
         self.oryClient = oryClient
         self.onLogin = onLogin
     }
@@ -44,12 +44,20 @@ class LoginViewModel: ObservableObject {
                 if let value = field.value {
                     fieldValues[field.id] = value
                 }
+                
+                if field.group == .passkey {
+                    hasPasskey = true
+                }
+            }
+            
+            if hasPasskey {
+                self.passkeyChallenge = try await oryClient.getPasskeyChallenge(from: loginFlow)
             }
             
             print("flow loaded: \(loginFlow.id)")
             print("field count: \(loginFlow.fields.count)")
             for field in loginFlow.fields {
-                print("  field: \(field.id), uiNodeType: \(field.uiNodeType.rawValue), uiNodeAttrType: \(field.uiNodeAttrModelType), label: \(field.label)")
+                print("  field: \(field.id), group: \(field.group), uiNodeType: \(field.uiNodeType.rawValue), uiNodeAttrType: \(field.uiNodeAttrModelType), isRequired: \(field.isRequired), label: \(field.label), value: \(field.value ?? ""), messages: \(field.messages)")
             }
         } catch {
             // fix this to catch the proper type of error

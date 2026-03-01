@@ -12,9 +12,14 @@ import OryClient
 struct LoginView: View {
     
     @StateObject private var viewModel: LoginViewModel
+    @StateObject private var passkeyHandler: PasskeyHandler
     
     init(oryClient: OryAuthClient, onLogin: @escaping (OrySession) -> Void) {
         _viewModel = StateObject(wrappedValue: LoginViewModel(
+            oryClient: oryClient,
+            onLogin: onLogin
+        ))
+        _passkeyHandler = StateObject(wrappedValue: PasskeyHandler(
             oryClient: oryClient,
             onLogin: onLogin
         ))
@@ -58,10 +63,16 @@ struct LoginView: View {
                 // Pass submitLogin to be used by button
                 OryFieldView(
                     oryField: field,
-                    value: binding(for: field.id)
-                ) {
-                    await viewModel.submitLogin()
-                }
+                    value: binding(for: field.id),
+                    onSubmit: { await viewModel.submitLogin() }
+                )
+            } else if field.uiNodeAttrModelType == .button {
+                // Pass passkey submit
+                OryFieldView(
+                    oryField: field,
+                    value: binding(for: field.id),
+                    onPasskey: { try await passkeyHandler.startAssertion(with: viewModel.passkeyChallenge) }
+                )
             }
         }
     }
