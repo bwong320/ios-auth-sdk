@@ -29,6 +29,11 @@ let oryClient = OryAuthClient(projectBaseURL: projectBaseURL)
 let loginFlow = try await client.initLoginFlow()
 self.fields = loginFlow.fields
 
+// Check if fields contain passkey, if so get passkey challenge from loginFlow
+if self.fields.contains(where: { $0.group == .passkey }) {
+    self.passkeyChallenge = try await oryClient.getPasskeyChallenge(from: loginFlow)
+}
+
 // Render fields in your UI
 ForEach(viewModel.fields) { field in
     print("\(field.label): \(field.uiNodeAttrModelType))  // e.g. "E-Mail: text"
@@ -39,6 +44,16 @@ let session = try await oryClient.submitLogin(
     flowId: loginFlow.id,
     credentials: LoginCredentials(identifier: "test@test.com", password: "testMe!")
 )
+
+// Submit passkey assertion
+let session = try await oryClient.submitPasskeyAssertion(
+    flowId: loginFlow.id,
+    credentialId: credential.credentialID,
+    clientDataJSON: credential.rawClientDataJSON,
+    authenticatorData: credential.rawAuthenticatorData,
+    signature: credential.signature
+)
+
 // User logged in
 // Show user profile
 print("User profile: \(session.identity.traits)")
@@ -53,22 +68,22 @@ print("User profile: \(session.identity.traits)")
 │     ┌───────────┐  ┌─────────────┐  ┌──────────────┐  │
 │     │ LoginView │  │ ProfileView │  │ OryFieldView │  │
 │     └─────┬─────┘  └─────────────┘  └──────────────┘  │
-│           │                                           │
-│           │                                           │
+│           │   │                                       │
+│           │ PasskeyHandler                            │
 │  ┌────────┴───────┐         ┌──────────┐              │
 │  │ LoginViewModel │         │ AppState │              │
 │  └────────┬───────┘         └─────┬────┘              │
-│           │                       │                   │
+│           │   │                   │                   │
 │───────────────────────────────────────────────────────│
-│           │                       │                   │
-│           │          OryAuthSDK   │                   │
+│           │   │                   │                   │
+│           │   │      OryAuthSDK   │                   │
 │  ┌──────────────────────────────────────┐             │
 │  │                                      │             │
 │  │        OryAuthClientProtocol         │  Public API │
 │  │        OryAuthClient                 │             │
 │  │                                      │             │
 │  │──────────────────────────────────────│             │
-│  │                                      │             │
+│  │        PasskeyChallengeParser        │             │
 │  │    UiNodeParser     SessionStorage   │   Internal  │
 │  │                                      │             │
 │  │──────────────────────────────────────│             │
@@ -76,7 +91,7 @@ print("User profile: \(session.identity.traits)")
 │  │        OryField   OryLoginFlow       │             │
 │  │                                      │    Models   │
 │  │       OrySession    OryError         │             │
-│  │                                      │             │
+│  │          PasskeyChallenge            │             │
 │  └─────────┬────────────────────────────┘             │
 │────────────┼──────────────────────────────────────────│
 │            │                                          │
@@ -99,6 +114,8 @@ print("User profile: \(session.identity.traits)")
 
 - **AppState** - Holds the current `OrySession?`. When `session` changes value changes, SwiftUI reactively swaps between `LoginView` and `ProfileView`.
 - **LoginViewModel** — Manages initializing flow, parsed fields, form values, login submission, and error handling. Uses `@Published` properties to drive UI updates.
+- **PasskeyHandler** - Manages the passkey assertion and authorization. Conforms to `ASAuthorizationControllerDelegate`,
+    `ASAuthorizationControllerPresentationContextProviding` required for native passkey.
 - **Binding** — `OryFieldView` receives a `Binding<String>` for each field, which creates a binding so user input can be stored in the LoginViewModel's `fieldValues` dictionary.
 - **Session** — On successful login, the session token is stored in the Keychain. On app launch, `AppState.checkSession()` attempts to retrieve the session from the stored token.
 
@@ -118,13 +135,15 @@ print("User profile: \(session.identity.traits)")
 
 **Registration Flow** — SDK architecture already supports it so adding registration flow should be relatively straightforward.
 
-**Passkeys** - Allow for passkey login as an alternative to username+password.
+**Passkeys** - I do not have an Apple developer account so I could not obtain the entitlement to properly test the passkey implementation. If I had more time I would also want to add passkey registration since there is only the login functionality in the demo.
 
 **Identifier-First Login** — Ran into this issue initially since the flow is defaulted to identifier-first login so I would like to add support to handle this scenario.
 
 **Error Handling** - Would like to polish up error handling since I didn't have enough time to go through the various cases.
 
 **Testing** — Add unit tests for the various functionality
+
+**Node rendering** - Would also like to fix how order of how the UiNode fields are rendered. When I enabled passkeys through Ory console, the passkey button was being rendered between the email and password field.
 
 ## Running the Demo
 
